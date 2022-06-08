@@ -1,0 +1,2 @@
+﻿Reversiフォルダ内のソースコードはすべてKalmia(自作のリバーシ思考エンジン)から持ち込んだもの。　
+FastBoardとBoardの2つに分かれている謎設計になっているのは、元々はFastBoardを探索用、 BoardをUI用に分けていたから。　
