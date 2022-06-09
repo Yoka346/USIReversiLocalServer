@@ -19,6 +19,7 @@ namespace USIReversiGameServer
         {
             this.process = process;
             this.process.OutputDataReceived += this.Process_OutputDataReceived;
+            this.process.BeginOutputReadLine();
         }
 
         /// <summary>
