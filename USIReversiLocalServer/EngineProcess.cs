@@ -13,10 +13,12 @@ namespace USIReversiGameServer
     internal class EngineProcess
     {
         Process process;
+        Queue<string?> recievedLines = new();
 
         EngineProcess(Process process)
         {
             this.process = process;
+            this.process.OutputDataReceived += this.Process_OutputDataReceived;
         }
 
         /// <summary>
@@ -35,7 +37,14 @@ namespace USIReversiGameServer
             return process is null ? null : new EngineProcess(process);
         }
 
-        public string ReadOutput()　=> this.process.StandardOutput.ReadLine() ?? string.Empty;
+        public string ReadOutput()
+        {
+            if (this.recievedLines.Count == 0)
+                return string.Empty;
+            return this.recievedLines.Dequeue() ?? string.Empty;
+        }
+
         public void SendCommand(string cmd) => this.process.StandardInput.WriteLine(cmd);
+        void Process_OutputDataReceived(object sender, DataReceivedEventArgs e) => this.recievedLines.Enqueue(e.Data);
     }
 }
