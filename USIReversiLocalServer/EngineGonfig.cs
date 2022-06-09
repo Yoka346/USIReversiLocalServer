@@ -22,7 +22,7 @@ namespace USIReversiGameServer
         }
 
         public static EngineConfig? Load(string path) 
-            => JsonSerializer.Deserialize(File.ReadAllText(path), typeof(EngineConfig)) as EngineConfig;
+            => JsonSerializer.Deserialize<EngineConfig>(File.ReadAllText(path));
 
         public void Save(string path) 
             => File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));   

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace USIReversiGameServer
@@ -28,5 +29,9 @@ namespace USIReversiGameServer
         /// Bookに従う手数の最大値.
         /// </summary>
         public int MaxBookMoveNum { get; private set; } = 21;
+
+        public GameConfig? Load(string path) => JsonSerializer.Deserialize<GameConfig>(File.ReadAllText(path));
+        public void Save(string path)
+            => File.WriteAllText(path, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
     }
 }

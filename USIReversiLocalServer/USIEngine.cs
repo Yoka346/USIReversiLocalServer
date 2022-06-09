@@ -123,7 +123,7 @@ namespace USIReversiGameServer
             var usiMove = bestMove.AsSpan(Math.Min("bestmove ".Length, bestMove.Length - 1));   
             var move = USI.ParseUSIMove(usiMove);
             if (move == BoardCoordinate.Null)
-                Console.WriteLine($"Error : bestmove = {usiMove}\n{board}");    
+                Console.WriteLine($"Error : Cannot parse \"{usiMove}\". \n");    
             return move;
         }
 

@@ -13,9 +13,20 @@ namespace USIReversiGameServer
     /// </summary>
     internal class Game
     {
+        USIEngine[]? engines = new USIEngine[2];
+        EngineConfig[] engineConfigs = new EngineConfig[2];
+        BookItem[]? book;
+        Random rand = new Random(Random.Shared.Next());
+        USIEngine[] players;
+        EngineConfig[] playerConfigs;
+        bool swapPlayer = false;
+        int[] winCount;
+        int drawCount;
+
         public GameConfig Config { get; }
         public EngineConfig? Engine0 { get; set; } = null;
         public EngineConfig? Engine1 { get; set; } = null;
+        public bool IsPlaying { get; private set; } = false;
 
         public Game(GameConfig gameConfig) => this.Config = gameConfig;
 
@@ -28,64 +39,134 @@ namespace USIReversiGameServer
         /// <param name="swapPlayer">1手ごとに手番を入れ替えるか.</param>
         public void Start(int gameNum, bool swapPlayer)
         {
+            if (this.IsPlaying)
+                throw new InvalidOperationException("the game has already started.");
+
             if (this.Engine0 is null || this.Engine1 is null)
                 throw new NullReferenceException("All engines' config was not set.");
 
-            var engineConfigs = new EngineConfig[2] { this.Engine0, this.Engine1 };
-            var engines = RunEngines(engineConfigs);
-            if (engines is null)
+            this.engineConfigs = new EngineConfig[2] { this.Engine0, this.Engine1 };
+            this.engines = RunEngines(engineConfigs);
+            if (this.engines is null)
+                return;
+            this.players = (USIEngine[])this.engines.Clone();
+            this.playerConfigs = (EngineConfig[])this.engineConfigs.Clone();
+
+            this.book = LoadBook();
+            if (this.book is null)
                 return;
 
-            var book = LoadBook();
-            if (book is null)
-                return;
-
+            this.IsPlaying = true;
             Console.WriteLine($"USI reversi server start : {Path.GetFileName(engineConfigs[0].Path)} v.s. {Path.GetFileName(engineConfigs[1].Path)}");
-            Mainloop(gameNum, swapPlayer, engineConfigs, engines, book);
+            if (!Mainloop(gameNum))
+                Console.WriteLine($"Game was suspended.");
+            this.IsPlaying = false;
         }
 
-        void Mainloop(int gameNum, bool swapPlayer, EngineConfig[] engineConfigs, USIEngine[] engines, BookItem[] book)
+        bool Mainloop(int gameNum)
         {
             const int GAME_START_TIMEOUT_MS = 100000;
 
-            var rand = new Random();
-            
+            this.winCount = new int[2];
+            this.drawCount = 0;
             for(var gameID = 0; gameID < gameNum; gameID++)
             {
-                for (var i = 0; i < engines.Length; i++)
-                    if (!engines[i].TransitionToGameStartState(GAME_START_TIMEOUT_MS))
+                for (var i = 0; i < this.engines.Length; i++)
+                    if (!this.engines[i].TransitionToGameStartState(GAME_START_TIMEOUT_MS))
                     {
                         Console.WriteLine($"Error : Engine \"{Path.GetFileName(engineConfigs[i].Path)}\" did not transition to game start state.");
-                        return;
+                        return false;
                     }
 
-                var rootBoard = InitBoard(book, rand);
+                var rootBoard = InitBoard();
                 var board = new Board(rootBoard);
-                GameResult result;
-                while((result = rootBoard.GetGameResult(DiscColor.Black)) == GameResult.NotOver)
+                while(true)
                 {
                     var sideToMove = board.SideToMove;
-                    var engine = engines[(int)sideToMove];
-                    var engineConfig = engineConfigs[(int)sideToMove];
+                    var engine = this.players[(int)sideToMove];
+                    var engineConfig = this.playerConfigs[(int)sideToMove];
                     var move = engine.Think(rootBoard, board, engineConfig.MilliSecondsPerMove);
                     if(move != BoardCoordinate.Resign)
                     {
-                        board.Update(move);
+                        if (!board.Update(move))
+                        {
+                            Console.WriteLine($"Error : Move {move} was illegal.");
+                            return false;
+                        }
+
+                        var result = board.GetGameResult(DiscColor.Black);
+                        if (result != GameResult.NotOver)
+                        {
+                            OnGameOver(DiscColor.Black, result);
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        OnGameOver(board.SideToMove, GameResult.Resigned);
+                        break;
                     }
                 }
             }
+            return true;
         }
 
-        Board InitBoard(BookItem[] book, Random rand)   // Bookからランダムに対局を選択して盤面を生成.
+        Board InitBoard()   // Bookからランダムに対局を選択して盤面を生成.
         {
-            var bookItem = book[rand.Next(book.Length)];
+            var bookItem = this.book[this.rand.Next(book.Length)];
             var board = bookItem.GetInitialBoard();
             var min = Math.Min(this.Config.MinBookMoveNum, bookItem.Moves.Length);
             var max = Math.Min(this.Config.MaxBookMoveNum, bookItem.Moves.Length);
-            var moves = bookItem.Moves[..rand.Next(min, max + 1)];
+            var moves = bookItem.Moves[..this.rand.Next(min, max + 1)];
             foreach (var move in moves)     
                 board.Update(move);
             return board;
+        }
+
+        void OnGameOver(DiscColor player, GameResult result)
+        {
+            switch (result)
+            {
+                case GameResult.Resigned:
+                    Console.WriteLine($"Game over : {this.players[(int)player].Name}({player}) resigns.");
+                    this.winCount[(int)FastBoard.GetOpponentColor(player)]++;
+                    break;
+
+                case GameResult.Win:
+                    Console.WriteLine($"Game over : {this.players[(int)player].Name}({player}) wins.");
+                    this.winCount[(int)player]++;
+                    break;
+
+                case GameResult.Loss:
+                    var opponent = FastBoard.GetOpponentColor(player);
+                    Console.WriteLine($"Game over : {this.players[(int)opponent]}({opponent}) wins.");
+                    this.winCount[(int)opponent]++;
+                    break;
+
+                case GameResult.Draw:
+                    Console.WriteLine($"Game over : Draw.");
+                    this.drawCount++;
+                    break;
+            }
+
+            var colorOfEngine0 = this.players[0] == this.engines[0] ? DiscColor.Black : DiscColor.White;
+            var colorOfEngine1 = FastBoard.GetOpponentColor(colorOfEngine0);
+            int winCount0 = this.winCount[(int)colorOfEngine0];
+            int winCount1 = this.winCount[(int)colorOfEngine1];
+            var gameCount = winCount0 + winCount1 + this.drawCount;
+            Console.WriteLine($"{this.engines[0].Name} v.s. {this.engines[1].Name} : {winCount0}-{this.drawCount}-{winCount1}");
+            Console.WriteLine($"{this.engines[0].Name} winning rate : {(winCount0 + 0.5 * this.drawCount) / gameCount:.2f}%");
+            Console.WriteLine($"{this.engines[1].Name} winning rate : {(winCount1 + 0.5 * this.drawCount) / gameCount:.2f}%\n");
+
+            if (this.swapPlayer)
+                SwapPlayer();
+        }
+
+        void SwapPlayer()
+        {
+            Swap(this.players);
+            Swap(this.playerConfigs);
+            Swap(this.winCount);
         }
 
         static USIEngine[]? RunEngines(EngineConfig[] engineConfigs)
@@ -140,6 +221,16 @@ namespace USIReversiGameServer
             }
             Console.WriteLine($"Done.\n{book.Count} games were loaded. Failed to load {failCount} games");
             return book.ToArray();
+        }
+
+        static void Swap<T>(T[] array)
+        {
+            if(array.Length == 2)
+            {
+                var tmp = array[0];
+                array[0] = array[1];
+                array[1] = tmp;
+            }
         }
     }
 }

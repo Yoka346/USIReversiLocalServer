@@ -83,6 +83,9 @@ namespace USIReversiGameServer
         /// <returns></returns>
         public static BoardCoordinate ParseUSIMove(ReadOnlySpan<char> move)
         {
+            if (move == "pass")
+                return BoardCoordinate.Pass;
+
             if (move == "resign")
                 return BoardCoordinate.Resign;
 

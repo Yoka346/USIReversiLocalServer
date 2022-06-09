@@ -14,7 +14,8 @@ namespace USIReversiGameServer.Reversi
         Win = 1,
         Loss = -1,
         Draw = 0,
-        NotOver = -2
+        NotOver = -2,
+        Resigned = -3
     }
 
     internal enum DiscColor : sbyte
