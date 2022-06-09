@@ -26,7 +26,7 @@ namespace USIReversiGameServer
             if (sfen.Length < USI.SFEN_LEN)
                 return null;
 
-            var board = USI.SfenStringToBoard(sfen.AsSpan(USI.SFEN_LEN));
+            var board = USI.SfenStringToBoard(sfen.AsSpan(0, USI.SFEN_LEN));
             if (board is null)
                 return null;
 

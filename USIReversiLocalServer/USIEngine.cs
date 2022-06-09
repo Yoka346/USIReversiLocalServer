@@ -26,7 +26,6 @@ namespace USIReversiGameServer
     internal class USIEngine
     {
         readonly string ENGINE_PATH;
-        readonly string THINK_CMD;
         EngineProcess process;
         readonly ReadOnlyCollection<Action> ON_IDLE;    // OnIdleメソッドが呼ばれたときに用いるコールバック.
 
@@ -47,10 +46,9 @@ namespace USIReversiGameServer
         /// </summary>
         public List<string> InitialCommands { get; private set; } = new();
 
-        public USIEngine(string path, string thinkCmd) 
+        public USIEngine(string path) 
         { 
             this.ENGINE_PATH = path;
-            this.THINK_CMD = thinkCmd;
             var onIdle = new Action[] { this.OnStartUp, this.OnWaitUSIOK, this.OnIsReady, 
                                         this.OnWaitReadyOK, () => { }, this.OnGameOver };
             this.ON_IDLE = new ReadOnlyCollection<Action>(onIdle);
@@ -95,38 +93,54 @@ namespace USIReversiGameServer
         /// </summary>
         /// <param name="rootBoard">初期盤面</param>
         /// <param name="board">現在の盤面.</param>
-        /// <param name="thinkCmd">思考コマンド.</param>
+        /// <param name="timeLimitMilliSec">1手の時間制限</param>
         /// <returns></returns>
-        public BoardCoordinate Think(Board rootBoard, Board board)
+        public BoardCoordinate Think(Board rootBoard, Board board, int timeLimitMilliSec)
         {
             var sfen = $"position {USI.BoardToSfenString(rootBoard)} moves {USI.MovesToUSIMovesString(rootBoard.EnumerateMoveHistory())}";
             this.process.SendCommand(sfen);
-            this.process.SendCommand(this.THINK_CMD);
 
-            string bestMove;
+            // ここでのbtimeとwtimeは持ち時間という意味ではなく, 1手に費やすことができる時間.
+            if(board.SideToMove == DiscColor.Black)
+                this.process.SendCommand($"go btime {timeLimitMilliSec}");
+            else
+                this.process.SendCommand($"go wtime {timeLimitMilliSec}");
+
+            string? bestMove = null;
+            var startTime = Environment.TickCount;
             do
+            {
+                if (Environment.TickCount - startTime > timeLimitMilliSec)  
+                {
+                    this.process.SendCommand("stop");
+                    Console.WriteLine($"Error : Timeout!! {this.Name} did not return the best move within {timeLimitMilliSec}[ms]");
+                    return BoardCoordinate.Null;
+                }
                 bestMove = this.process.ReadOutput();
+            }
             while (!bestMove.Contains("bestmove"));
 
-            var uoiMove = bestMove.AsSpan(Math.Min("bestmove ".Length, bestMove.Length - 1));   // String.Substringは遅いのでSpanで着手のみを切り取る.
-            var move = USI.ParseUSIMove(uoiMove);
+            var usiMove = bestMove.AsSpan(Math.Min("bestmove ".Length, bestMove.Length - 1));   
+            var move = USI.ParseUSIMove(usiMove);
             if (move == BoardCoordinate.Null)
-                Console.WriteLine($"Error : bestmove = {uoiMove}\n{board}");    
+                Console.WriteLine($"Error : bestmove = {usiMove}\n{board}");    
             return move;
         }
+
+        public void Pass() => this.process.SendCommand("pass");
 
         public void GameOver() => this.State = USIEngineState.GameOver;
 
         void OnStartUp()
         {
-            this.process.SendCommand("uoi");
+            this.process.SendCommand("usi");
             this.State = USIEngineState.WaitUSIOK;
         }
 
         void OnWaitUSIOK()
         {
             var output = this.process.ReadOutput();
-            if (output == "uoiok")
+            if (output == "usiok")
                 this.State = USIEngineState.IsReady;
             else if (output.Substring(0, Math.Min(output.Length, 8)) == "id name ")
                 this.Name = output.Substring(8, output.Length - 8);
@@ -145,7 +159,7 @@ namespace USIReversiGameServer
         {
             if(this.process.ReadOutput() == "readyok")
             {
-                this.process.SendCommand("uoinewgame");
+                this.process.SendCommand("usinewgame");
                 this.State = USIEngineState.GameStart;
             }
         }

@@ -45,6 +45,7 @@ namespace USIReversiGameServer
         }
 
         public void SendCommand(string cmd) => this.process.StandardInput.WriteLine(cmd);
+
         void Process_OutputDataReceived(object sender, DataReceivedEventArgs e) => this.recievedLines.Enqueue(e.Data);
     }
 }

@@ -10,15 +10,15 @@ namespace USIReversiGameServer
 {
     internal class EngineConfig
     {
-        public string Path { get; private set; }
-        public string ThinkCommand { get; private set; }
-        public ReadOnlyCollection<string> InitialCommands { get; private set; }
+        public string Path { get; }
+        public ReadOnlyCollection<string> InitialCommands { get; }
+        public int MilliSecondsPerMove { get; }
 
-        public EngineConfig(string path, string thinkCmd, IEnumerable<string> initialCmds)
+        public EngineConfig(string path, IEnumerable<string> initialCmds, int milliSecPerMove)
         {
             this.Path = path;
-            this.ThinkCommand = thinkCmd;
             this.InitialCommands = new ReadOnlyCollection<string>(initialCmds.ToArray());
+            this.MilliSecondsPerMove = milliSecPerMove;
         }
 
         public static EngineConfig? Load(string path) 

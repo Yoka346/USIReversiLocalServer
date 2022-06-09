@@ -65,10 +65,12 @@ namespace USIReversiGameServer
                 while((result = rootBoard.GetGameResult(DiscColor.Black)) == GameResult.NotOver)
                 {
                     var sideToMove = board.SideToMove;
-                    var move = engines[(int)sideToMove].Think(rootBoard, board);
+                    var engine = engines[(int)sideToMove];
+                    var engineConfig = engineConfigs[(int)sideToMove];
+                    var move = engine.Think(rootBoard, board, engineConfig.MilliSecondsPerMove);
                     if(move != BoardCoordinate.Resign)
                     {
-
+                        board.Update(move);
                     }
                 }
             }
@@ -88,7 +90,7 @@ namespace USIReversiGameServer
 
         static USIEngine[]? RunEngines(EngineConfig[] engineConfigs)
         {
-            var engines = (from config in engineConfigs select new USIEngine(config.Path, config.ThinkCommand)).ToArray();
+            var engines = (from config in engineConfigs select new USIEngine(config.Path)).ToArray();
             for (var i = 0; i < engines.Length; i++)
             {
                 engines[i].InitialCommands.AddRange(engineConfigs[i].InitialCommands);
