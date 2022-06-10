@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 
-namespace USIReversiGameServer
+namespace USITestClient
 {
     /// <summary>
     /// 思考エンジンのプロセスを管理するクラス. このクラスを介してコマンドの送受信を行う.

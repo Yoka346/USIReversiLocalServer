@@ -1,13 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.ObjectModel;
 
-using USIReversiGameServer.Reversi;
+using USITestClient.Reversi;
 
-namespace USIReversiGameServer
+namespace USITestClient
 {
     internal enum USIEngineState
     {
@@ -20,7 +15,7 @@ namespace USIReversiGameServer
     }
 
     /// <summary>
-    ///USI(Universal Standard game Interface)に準拠した思考エンジンを管理するクラス.
+    /// USI(Universal Standard game Interface)に準拠した思考エンジンを管理するクラス.
     /// このクラスを介して着手などの情報を得たり, サーバーから盤面の情報を送信したりする.
     /// </summary>
     internal class USIEngine
@@ -129,7 +124,11 @@ namespace USIReversiGameServer
 
         public void Pass() => this.process.SendCommand("pass");
 
-        public void GameOver() => this.State = USIEngineState.GameOver;
+        public void GameOver(GameResult result) 
+        {
+            this.process.SendCommand($"gameover {result.ToString().ToLower()}");
+            this.State = USIEngineState.GameOver; 
+        }
 
         void OnStartUp()
         {

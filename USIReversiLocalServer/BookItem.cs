@@ -1,12 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿
+using USITestClient.Reversi;
 
-using USIReversiGameServer.Reversi;
-
-namespace USIReversiGameServer
+namespace USITestClient
 {
     /// <summary>
     /// Bookに格納されている1局分の情報

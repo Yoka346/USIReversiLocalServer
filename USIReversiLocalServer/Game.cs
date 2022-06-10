@@ -1,12 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿
+using USITestClient.Reversi;
 
-using USIReversiGameServer.Reversi;
-
-namespace USIReversiGameServer
+namespace USITestClient
 {
     /// <summary>
     /// 対局を管理するクラス
@@ -158,6 +153,20 @@ namespace USIReversiGameServer
             Console.WriteLine($"{this.engines[0].Name} winning rate : {(winCount0 + 0.5 * this.drawCount) / gameCount:.2f}%");
             Console.WriteLine($"{this.engines[1].Name} winning rate : {(winCount1 + 0.5 * this.drawCount) / gameCount:.2f}%\n");
 
+
+            if (result == GameResult.Draw)
+            {
+                foreach (var engine in this.engines)
+                    engine.GameOver(result);
+            }
+            else
+            {
+                var winner = (result == GameResult.Loss || result == GameResult.Resigned)
+                            ? FastBoard.GetOpponentColor(player) : player;
+                this.players[(int)winner].GameOver(GameResult.Win);
+                this.players[(int)FastBoard.GetOpponentColor(winner)].GameOver(GameResult.Loss);
+            }
+
             if (this.swapPlayer)
                 SwapPlayer();
         }
@@ -225,12 +234,8 @@ namespace USIReversiGameServer
 
         static void Swap<T>(T[] array)
         {
-            if(array.Length == 2)
-            {
-                var tmp = array[0];
-                array[0] = array[1];
-                array[1] = tmp;
-            }
+            if (array.Length == 2)
+                (array[1], array[0]) = (array[0], array[1]);
         }
     }
 }

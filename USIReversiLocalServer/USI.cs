@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Text;
 
-using USIReversiGameServer.Reversi;
+using USITestClient.Reversi;
 
-namespace USIReversiGameServer
+namespace USITestClient
 {
     internal static class USI
     {

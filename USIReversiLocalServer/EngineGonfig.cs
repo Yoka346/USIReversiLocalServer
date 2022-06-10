@@ -1,12 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Linq;
-using System.Text;
+﻿using System.Collections.ObjectModel;
 using System.Text.Json;
-using System.Threading.Tasks;
 
-namespace USIReversiGameServer
+namespace USITestClient
 {
     internal class EngineConfig
     {
