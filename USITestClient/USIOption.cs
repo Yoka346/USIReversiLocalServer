@@ -62,7 +62,7 @@
 
         /// <summary>
         /// オプションの値を表す文字列.
-        /// getterは単純にToStringメソッドを呼び出すだけ, setterでは受けたvalueをstringParserで文字列に変換し, CurrentValueに代入する.
+        /// getterは単純にToStringメソッドを呼び出すだけ, setterでは受けたvalueをstringParserで文字列から実際の値に変換し, CurrentValueに代入する.
         /// </summary>
         public string ValueString
         {
@@ -83,8 +83,8 @@
             this.Idx = idx;
             this.DefaultValue = defaultValue;
             this.currentValue = defaultValue;
-            this.MinValue = (min is not null) ? min : null;
-            this.MaxValue = (max is not null) ? max : null;
+            this.MinValue = min;
+            this.MaxValue = max;
             this.STRING_PARSER = stringParser;
         }
 
