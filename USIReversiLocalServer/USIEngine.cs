@@ -95,11 +95,10 @@ namespace USITestClient
             var sfen = $"position {USI.BoardToSfenString(rootBoard)} moves {USI.MovesToUSIMovesString(rootBoard.EnumerateMoveHistory())}";
             this.process.SendCommand(sfen);
 
-            // ここでのbtimeとwtimeは持ち時間という意味ではなく, 1手に費やすことができる時間.
             if(board.SideToMove == DiscColor.Black)
-                this.process.SendCommand($"go btime {timeLimitMilliSec}");
+                this.process.SendCommand($"go byoyomi {timeLimitMilliSec}");
             else
-                this.process.SendCommand($"go wtime {timeLimitMilliSec}");
+                this.process.SendCommand($"go byoyomi {timeLimitMilliSec}");
 
             string? bestMove = null;
             var startTime = Environment.TickCount;

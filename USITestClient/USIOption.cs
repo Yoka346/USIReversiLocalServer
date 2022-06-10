@@ -4,7 +4,7 @@
 
     /// <summary>
     /// USIプロトコルのオプション. 
-    /// オプションの値の型はdynamic(動的型付け). SortedDictionaryで一括管理したいのでジェネリックにはしなかった.
+    /// オプションの値の型はdynamic(動的型付け). Dictionaryで一括管理したいのでジェネリックにはしなかった.
     /// </summary>
     internal class USIOption
     {
@@ -62,7 +62,7 @@
 
         /// <summary>
         /// オプションの値を表す文字列.
-        /// getterは単純にToStringメソッドを呼び出すだけ, getterでは受けたvalueをstringParserで文字列に変換し, CurrentValueに代入する.
+        /// getterは単純にToStringメソッドを呼び出すだけ, setterでは受けたvalueをstringParserで文字列に変換し, CurrentValueに代入する.
         /// </summary>
         public string ValueString
         {
