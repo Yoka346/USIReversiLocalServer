@@ -1,4 +1,4 @@
-﻿namespace USITestClient.Reversi
+﻿namespace USIReversiLocalServer.Reversi
 {
     internal static class StackExtension
     {

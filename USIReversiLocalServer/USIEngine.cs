@@ -1,8 +1,8 @@
 ﻿using System.Collections.ObjectModel;
 
-using USITestClient.Reversi;
+using USIReversiLocalServer.Reversi;
 
-namespace USITestClient
+namespace USIReversiLocalServer
 {
     internal enum USIEngineState
     {
@@ -22,12 +22,17 @@ namespace USITestClient
     {
         readonly string ENGINE_PATH;
         EngineProcess process;
-        readonly ReadOnlyCollection<Action> ON_IDLE;    // OnIdleメソッドが呼ばれたときに用いるコールバック.
+        readonly ReadOnlyCollection<Action> ON_IDLE;    
 
         /// <summary>
         /// id name コマンドから受け取ったエンジンの名前.
         /// </summary>
-        public string Name { get; private set; }
+        public string? Name { get; private set; }
+
+        /// <summary>
+        /// id author コマンドから受け取ったエンジンの作者の名前.
+        /// </summary>
+        public string? Author { get; private set; }
 
         /// <summary>
         /// 思考エンジンの状態.
@@ -35,6 +40,11 @@ namespace USITestClient
         public USIEngineState State { get; private set; }
 
         public bool IsGameStarted => State == USIEngineState.GameStart;
+
+        /// <summary>
+        /// 秒読みオーバーの許容値.
+        /// </summary>
+        public uint ByoyomiToleranceMs { get; set; }
 
         /// <summary>
         /// 思考エンジンがコマンド受理状態(USIEngineState.IsReady)になったら一斉に送るコマンド.
@@ -100,28 +110,25 @@ namespace USITestClient
             else
                 this.process.SendCommand($"go byoyomi {timeLimitMilliSec}");
 
-            string? bestMove = null;
+            IgnoreSpaceStringReader bestMove;
             var startTime = Environment.TickCount;
             do
             {
-                if (Environment.TickCount - startTime > timeLimitMilliSec)  
+                if (Environment.TickCount - startTime > timeLimitMilliSec + this.ByoyomiToleranceMs)  
                 {
                     this.process.SendCommand("stop");
                     Console.WriteLine($"Error : Timeout!! {this.Name} did not return the best move within {timeLimitMilliSec}[ms]");
                     return BoardCoordinate.Null;
                 }
                 bestMove = this.process.ReadOutput();
-            }
-            while (!bestMove.Contains("bestmove"));
+            } while (bestMove.Read() != "bestmove");
 
-            var usiMove = bestMove.AsSpan(Math.Min("bestmove ".Length, bestMove.Length - 1));   
+            var usiMove = bestMove.Read();
             var move = USI.ParseUSIMove(usiMove);
             if (move == BoardCoordinate.Null)
                 Console.WriteLine($"Error : Cannot parse \"{usiMove}\". \n");    
             return move;
         }
-
-        public void Pass() => this.process.SendCommand("pass");
 
         public void GameOver(GameResult result) 
         {
@@ -138,10 +145,17 @@ namespace USITestClient
         void OnWaitUSIOK()
         {
             var output = this.process.ReadOutput();
-            if (output == "usiok")
+            var header = output.Read();
+            if (header == "usiok")
                 this.State = USIEngineState.IsReady;
-            else if (output.Substring(0, Math.Min(output.Length, 8)) == "id name ")
-                this.Name = output.Substring(8, output.Length - 8);
+            else if (header == "id")
+            {
+                var token = output.Read();
+                if (token == "name")
+                    this.Name = output.ReadToEnd().ToString();
+                else if (token == "author")
+                    this.Author = output.ReadToEnd().ToString();
+            }
         }
 
         void OnIsReady()
@@ -155,7 +169,7 @@ namespace USITestClient
 
         void OnWaitReadyOK()
         {
-            if(this.process.ReadOutput() == "readyok")
+            if(this.process.ReadOutput().Read() == "readyok")
             {
                 this.process.SendCommand("usinewgame");
                 this.State = USIEngineState.GameStart;

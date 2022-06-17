@@ -1,14 +1,14 @@
 ﻿using System.Text;
 
-using USITestClient.Reversi;
+using USIReversiLocalServer.Reversi;
 
-namespace USITestClient
+namespace USIReversiLocalServer
 {
     internal static class USI
     {
-        internal const int SFEN_LEN = 65;    // リバーシ用
+        internal const int SFEN_LEN = 67;    // リバーシ用
         static ReadOnlySpan<char> SFEN_DISC => new char[3] { 'X', 'O', '-' };
-        static ReadOnlySpan<char> SFEN_SIDE_TO_MOVE => new char[2] { 'B', 'W' };
+        static ReadOnlySpan<char> SFEN_SIDE_TO_MOVE => new char[2] { 'b', 'w' };
 
         /// <summary>
         /// 盤面をSFEN文字列で表現する.
@@ -21,7 +21,16 @@ namespace USITestClient
                                                             // StringBuilderを使うよりスタックに長さSFEN_LENのSpan<char>を確保した方が高速かも.
             for (var coord = BoardCoordinate.A1; coord <= BoardCoordinate.H8; coord++)
                 sfen[(int)coord] = SFEN_DISC[(int)board.GetDiscColor(coord)];
-            sfen[^1] = SFEN_SIDE_TO_MOVE[(int)board.SideToMove];
+            sfen[Board.SQUARE_NUM] = SFEN_SIDE_TO_MOVE[(int)board.SideToMove];
+
+            var moveNum = (Board.SQUARE_NUM - 4) - board.GetEmptyCount() + 1;
+            if(moveNum < 10)
+                sfen[Board.SQUARE_NUM + 1] = (char)('0' + moveNum);
+            else
+            {
+                sfen[Board.SQUARE_NUM + 1] = (char)('0' + moveNum / 10);
+                sfen[Board.SQUARE_NUM + 2] = (char)('0' + moveNum % 10);
+            }
             return sfen.ToString();
         }
 
@@ -39,7 +48,7 @@ namespace USITestClient
         /// <returns></returns>
         public static Board? SfenStringToBoard(ReadOnlySpan<char> sfen)
         {
-            if (sfen.Length != SFEN_LEN)
+            if (sfen.Length < Board.SQUARE_NUM + 1)    // 少なくとも 盤面 + 手番 の長さがあるか調べる. 
                 return null;
 
             var board = new Board();
@@ -47,14 +56,14 @@ namespace USITestClient
                 if (sfen[coord] == SFEN_DISC[(int)DiscColor.Black])
                     board.Put(DiscColor.Black, (BoardCoordinate)coord);
                 else if (sfen[coord] == SFEN_DISC[(int)DiscColor.White])
-                    board.Put(DiscColor.Black, (BoardCoordinate)coord);
+                    board.Put(DiscColor.White, (BoardCoordinate)coord);
                 else if (sfen[coord] != SFEN_DISC[(int)DiscColor.Null])    // 無効な文字を発見したら失敗.
                     return null;
 
             DiscColor side;
-            if (sfen[^1] == SFEN_SIDE_TO_MOVE[(int)DiscColor.Black])
+            if (sfen[Board.SQUARE_NUM] == SFEN_SIDE_TO_MOVE[(int)DiscColor.Black])
                 side = DiscColor.Black;
-            else if (sfen[^1] == SFEN_SIDE_TO_MOVE[(int)DiscColor.White])
+            else if (sfen[Board.SQUARE_NUM] == SFEN_SIDE_TO_MOVE[(int)DiscColor.White])
                 side = DiscColor.White;
             else
                 return null;    // 手番文字が無効であった場合は失敗.
@@ -119,7 +128,7 @@ namespace USITestClient
         {
             var sb = new StringBuilder();
             foreach (var move in moves)
-                if(move != BoardCoordinate.Pass && move != BoardCoordinate.Null)    // passは無視. 一般的にリバーシのf5d6c3...形式ではパスを表記しないので.
+                if(move != BoardCoordinate.Null)   
                     sb.Append(MoveToUSIMove(move));
             return sb.ToString();
         }
@@ -129,19 +138,12 @@ namespace USITestClient
         /// </summary>
         /// <param name="moves"></param>
         /// <returns></returns>
-        public static IEnumerable<BoardCoordinate> ParseUSIMoves(string moves) => ParseUSIMoves(moves.AsSpan());
-
-        /// <summary>
-        /// USIプロトコルの棋譜文字列を盤面座標として列挙する.
-        /// </summary>
-        /// <param name="moves"></param>
-        /// <returns></returns>
-        public static IEnumerable<BoardCoordinate> ParseUSIMoves(ReadOnlySpan<char> moves)
+        public static IEnumerable<BoardCoordinate> ParseUSIMoves(IgnoreSpaceStringReader isr)
         {
-            for(var i = 0; i < moves.Length - 1; i += 2)
+            while(isr.Peek() != -1)
             {
-                var move = ParseUSIMove(moves[i..(i + 1)]);
-                if(move == BoardCoordinate.Null)
+                var move = ParseUSIMove(isr.Read()); 
+                if (move == BoardCoordinate.Null)
                 {
                     yield return BoardCoordinate.Null;  // 無効な文字が含まれていたのでNullを返して終了.
                     yield break;

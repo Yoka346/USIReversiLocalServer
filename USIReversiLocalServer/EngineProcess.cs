@@ -1,6 +1,6 @@
 ﻿using System.Diagnostics;
 
-namespace USITestClient
+namespace USIReversiLocalServer
 {
     /// <summary>
     /// 思考エンジンのプロセスを管理するクラス. このクラスを介してコマンドの送受信を行う.
@@ -33,11 +33,11 @@ namespace USITestClient
             return process is null ? null : new EngineProcess(process);
         }
 
-        public string ReadOutput()
+        public IgnoreSpaceStringReader ReadOutput()
         {
             if (this.recievedLines.Count == 0)
-                return string.Empty;
-            return this.recievedLines.Dequeue() ?? string.Empty;
+                return new IgnoreSpaceStringReader(string.Empty);
+            return new IgnoreSpaceStringReader(this.recievedLines.Dequeue() ?? string.Empty);
         }
 
         public void SendCommand(string cmd) => this.process.StandardInput.WriteLine(cmd);

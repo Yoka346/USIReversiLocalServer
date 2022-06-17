@@ -1,7 +1,7 @@
 ﻿
-using static USITestClient.Reversi.Board;
+using static USIReversiLocalServer.Reversi.Board;
 
-namespace USITestClient.Reversi
+namespace USIReversiLocalServer.Reversi
 {
     internal struct Move
     {

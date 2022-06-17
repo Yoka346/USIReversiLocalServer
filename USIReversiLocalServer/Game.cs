@@ -1,8 +1,10 @@
 ﻿
-using USITestClient.Reversi;
+using USIReversiLocalServer.Reversi;
 
-namespace USITestClient
+namespace USIReversiLocalServer
 {
+    // ToDo: クライアントにstopとgameoverの実装. プロセスが予期せず終了したときの処理を記述. 全てのゲームが終了したときの終了処理を記述.
+
     /// <summary>
     /// 対局を管理するクラス
     /// </summary>
@@ -194,7 +196,7 @@ namespace USITestClient
         }
 
         /// <summary>
-        /// Bookのロード. Bookの形式は[sfen] moves [着手座標の羅列(f5d6c3...)]
+        /// Bookのロード. Bookの形式は[sfen] moves [着手の羅列(f5 d6 c3 .. pass ...)]
         /// </summary>
         /// <returns></returns>
         BookItem[]? LoadBook()

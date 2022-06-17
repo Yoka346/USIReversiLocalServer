@@ -1,5 +1,17 @@
-﻿namespace USITestClient
+﻿using System.Collections.ObjectModel;
+
+namespace USITestClient
 {
+    enum USIOptionType
+    {
+        Check,
+        Spin,
+        Combo,
+        Button,
+        String,
+        FileName
+    }
+
     internal delegate void USIOptionEventHandler(USIOption sender, dynamic oldValue, dynamic newValue);
 
     /// <summary>
@@ -8,8 +20,11 @@
     /// </summary>
     internal class USIOption
     {
-        dynamic currentValue;   
+        dynamic currentValue;
+        List<dynamic> valueCandidates = new();   // オプションの値の候補. TypeがUSIOptionType.Comboのときに使う.
         readonly Func<string, dynamic> STRING_PARSER;  // 文字列をオプションの値に変換するメソッド.
+
+        public USIOptionType Type { get; }
 
         /// <summary>
         /// オプションのデフォルト値.
@@ -25,6 +40,11 @@
         /// オプションの最大値.
         /// </summary>
         public IComparable? MaxValue { get; }
+
+        /// <summary>
+        /// オプションの値の候補.
+        /// </summary>
+        public ReadOnlyCollection<dynamic> ValueCandidates => new(valueCandidates);
 
         /// <summary>
         /// 辞書に追加したときの順番. C#では要素を追加した順番を保持するOrderedDictionaryが存在するが, ジェネリックではないので, このインデックスを用いてDictionaryへの追加順を保持する.
@@ -45,14 +65,14 @@
                 if(value is null)   
                     throw new ArgumentNullException("Value cannot be null.");
 
-                if (!this.currentValue.Equals(value.GetType())) // 型チェック.
+                if (!this.currentValue.GetType().Equals(value.GetType())) // 型チェック.
                     throw new ArgumentException($"The type of CurrentValue is {this.currentValue?.GetType()}, but that of the specified value was {value?.GetType()}. They must be same.");
 
-                if (this.MinValue?.CompareTo(value) < 0)
-                    throw new ArgumentOutOfRangeException($"The specified value was less than minimum value {this.MinValue}.");
+                if (this.MinValue?.CompareTo(value) > 0)
+                    throw new ArgumentOutOfRangeException(nameof(value), $"The specified value was less than minimum value {this.MinValue}.");
 
-                if (this.MaxValue?.CompareTo(value) > 0)
-                    throw new ArgumentOutOfRangeException($"The specified value was greater than maximum value {this.MaxValue}.");
+                if (this.MaxValue?.CompareTo(value) < 0)
+                    throw new ArgumentOutOfRangeException(nameof(value), $"The specified value was greater than maximum value {this.MaxValue}.");
 
                 var oldValue = this.currentValue;
                 this.currentValue = value;
@@ -76,11 +96,47 @@
         /// </summary>
         public event USIOptionEventHandler? OnValueChanged;
 
-        // 外からのオブジェクトの生成はCreateOption<T>メソッドで行うのでコンストラクタはprivate.
-        // コンストラクタから直接生成することを許してしまうと, defaultValue, min, max それぞれに別々の型の値を入れることが可能になってしまうため.
-        USIOption(int idx, dynamic defaultValue, IComparable? min, IComparable? max, Func<string, dynamic> stringParser)    
+        public USIOption(int idx, USIOptionType type, int defaultValue) 
+            : this(idx, type, defaultValue, null, null, s=>int.Parse(s)) { }
+
+        public USIOption(int idx, int defaultValue, int min, int max) 
+            : this(idx, USIOptionType.Spin, defaultValue, min, max) { }
+
+        public USIOption(int idx, USIOptionType type, int defaultValue, int min, int max) 
+            : this(idx, type, defaultValue, min, max, s => int.Parse(s)) { }
+
+        public USIOption(int idx, USIOptionType type, long defaultValue)
+            : this(idx, type, defaultValue, null, null, s => long.Parse(s)) { }
+
+        public USIOption(int idx, USIOptionType type, long defaultValue, long min, long max)
+            : this(idx, type, defaultValue, min, max, s => long.Parse(s)) { }
+
+        public USIOption(int idx, USIOptionType type, float defaultValue)
+            : this(idx, type, defaultValue, null, null, s => float.Parse(s)) { }
+
+        public USIOption(int idx, USIOptionType type, float defaultValue, float min, float max)
+            : this(idx, type, defaultValue, min, max, s => float.Parse(s)) { }
+
+        public USIOption(int idx, string defaultValue)
+            : this(idx, USIOptionType.String, defaultValue, null, null, s => s) { }
+
+        public USIOption(int idx, USIOptionType type, string defaultValue)
+            : this(idx, type, defaultValue, null, null, s => s) { }
+
+        public USIOption(int idx, bool defaultValue)
         {
             this.Idx = idx;
+            this.Type = USIOptionType.Check;
+            this.DefaultValue = defaultValue;
+            this.currentValue = defaultValue;
+            this.MinValue = this.MaxValue = null;
+            this.STRING_PARSER = s => bool.Parse(s);
+        }
+
+        USIOption(int idx, USIOptionType type, IComparable defaultValue, IComparable? min, IComparable? max, Func<string, dynamic> stringParser)
+        {
+            this.Idx = idx;
+            this.Type = type;
             this.DefaultValue = defaultValue;
             this.currentValue = defaultValue;
             this.MinValue = min;
@@ -88,37 +144,15 @@
             this.STRING_PARSER = stringParser;
         }
 
-        /// <summary>
-        /// USIOptionを生成する. 
-        /// </summary>
-        /// <param name="defaultValue">オプションのデフォルト値.</param>
-        /// <returns></returns>
-        public static USIOption CreateOption<T>(int idx, T defaultValue, Func<string, T> stringParser)
-            => new USIOption(idx, defaultValue, null, null, x => stringParser);
+        public void AddValueCandidates(dynamic value)
+        {
+            if (value is null)
+                throw new ArgumentNullException("Value cannot be null.");
 
-        /// <summary>
-        /// USIOptionを生成する.
-        /// </summary>
-        /// <typeparam name="T">オプションの型(制約: IComparableオブジェクト)</typeparam>
-        /// <param name="defaultValue">オプションの比較可能なデフォルト値.</param>
-        /// <param name="min">オプションの最小値.</param>
-        /// <param name="max">オプションの最大値.</param>
-        /// <returns></returns>
-        public static USIOption CreateOption<T>(int idx, T defaultValue, T min, T max, Func<string, T> stringParser) where T : IComparable
-            => new USIOption(idx, defaultValue, min, max, x => stringParser);
+            if (!value.GetType().Equals(this.DefaultValue.GetType()))
+                throw new ArgumentException($"The type of CurrentValue is {this.currentValue.GetType()}, but that of the specified value was {value.GetType()}. They must be same.");
 
-        // 以下, よく使う型に関してはあらかじめUSIOptionオブジェクトを生成するメソッドを用意する. 上とほぼ同じなのでメソッドのサマリーは省略.
-
-        public static USIOption CreateOption(int idx, int defaultValue, int min, int max)
-            => CreateOption(idx, defaultValue, min, max, int.Parse);
-
-        public static USIOption CreateOption(int idx, long defaultValue, long min, long max)
-            => CreateOption(idx, defaultValue, min, max, long.Parse);
-
-        public static USIOption CreateOption(int idx, float defaultValue, float min, float max)
-            => CreateOption(idx, defaultValue, min, max, float.Parse);
-
-        public static USIOption CreateOption(int idx, string defaultValue, string min, string max)
-            => CreateOption(idx, defaultValue, min, max, x => x);
+            this.valueCandidates.Add(value);
+        }
     }
 }

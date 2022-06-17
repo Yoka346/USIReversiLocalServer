@@ -1,7 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using System.Text.Json;
 
-namespace USITestClient
+namespace USIReversiLocalServer
 {
     internal class EngineConfig
     {

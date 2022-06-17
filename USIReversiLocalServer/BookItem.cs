@@ -1,7 +1,7 @@
 ﻿
-using USITestClient.Reversi;
+using USIReversiLocalServer.Reversi;
 
-namespace USITestClient
+namespace USIReversiLocalServer
 {
     /// <summary>
     /// Bookに格納されている1局分の情報

@@ -1,9 +1,9 @@
 ﻿using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 
-using static USITestClient.Reversi.BitManipulations;
+using static USIReversiLocalServer.Reversi.BitManipulations;
 
-namespace USITestClient.Reversi
+namespace USIReversiLocalServer.Reversi
 {
     public struct Bitboard
     {

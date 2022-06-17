@@ -1,6 +1,6 @@
 ﻿using System.Text.Json;
 
-namespace USITestClient
+namespace USIReversiLocalServer
 {
     /// <summary>
     /// 対局の設定.
@@ -24,6 +24,11 @@ namespace USITestClient
         /// Bookに従う手数の最大値.
         /// </summary>
         public int MaxBookMoveNum { get; private set; } = 21;
+
+        /// <summary>
+        /// 秒読みオーバーの許容値(ms). 通信の遅延などを考慮して値を決める.
+        /// </summary>
+        public int ByoyomiToleranceMs { get; private set; } = 10;
 
         public GameConfig? Load(string path) => JsonSerializer.Deserialize<GameConfig>(File.ReadAllText(path));
         public void Save(string path)

@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 
-namespace USITestClient.Reversi
+namespace USIReversiLocalServer.Reversi
 {
     internal static class BitManipulations
     {

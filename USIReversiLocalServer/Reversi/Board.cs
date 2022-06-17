@@ -1,6 +1,6 @@
 ﻿using System.Text;
 
-namespace USITestClient.Reversi
+namespace USIReversiLocalServer.Reversi
 {
     internal enum GameResult : sbyte
     {
