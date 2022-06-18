@@ -93,5 +93,17 @@ namespace USITestClient
         /// 実行中の思考を停止する. stopコマンドが呼ばれたときに実行されるメソッド.
         /// </summary>
         public abstract void StopThinking();
+
+        /// <summary>
+        /// ゲームの終了処理. gameoverコマンドが呼ばれたときに実行されるメソッド.
+        /// </summary>
+        /// <param name="result"></param>
+        public abstract void OnGameOver();
+
+        /// <summary>
+        /// ゲームの終了処理. gameoverコマンドが呼ばれたときに実行されるメソッド.
+        /// </summary>
+        /// <param name="result"></param>
+        public abstract void OnGameOver(GameResult result);
     }
 }

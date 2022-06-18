@@ -6,11 +6,10 @@ namespace USITestClient
 {
     /// <summary>
     /// USIで実際にやり取りを行う部分.
-    /// あくまでもUSITestClientのテスト用なので一部のUSIコマンドにしか対応していない.
+    /// あくまでもUSIReversiLocalServerのテスト用なので一部のUSIコマンドにしか対応していない.
     /// </summary>
     internal static class USI
     {
-        const int SFEN_LEN = 67;
         static ReadOnlySpan<char> SFEN_DISC => new char[3] { 'X', 'O', '-' };
         static ReadOnlySpan<char> SFEN_SIDE_TO_MOVE => new char[2] { 'b', 'w' };
 
@@ -28,6 +27,7 @@ namespace USITestClient
             cmds["position"] = ExecutePositionCommand;
             cmds["go"] = ExecuteGoCommand;
             cmds["stop"] = ExecuteStopCommand;
+            cmds["gameover"] = ExecuteGameOverCommand;
 
             COMMANDS = new ReadOnlyDictionary<string, Action<IgnoreSpaceStringReader>>(cmds);
         }
@@ -159,6 +159,29 @@ namespace USITestClient
         }
 
         static void ExecuteStopCommand(IgnoreSpaceStringReader cmdLine) => Engine?.StopThinking();
+
+        static void ExecuteGameOverCommand(IgnoreSpaceStringReader cmdLine)
+        {
+            var resultStr = cmdLine.Read();
+            switch (resultStr)
+            {
+                case "win":
+                    Engine?.OnGameOver(GameResult.Win);
+                    break;
+
+                case "loss":
+                    Engine?.OnGameOver(GameResult.Loss);
+                    break;
+
+                case "draw":
+                    Engine?.OnGameOver(GameResult.Draw);
+                    break;
+
+                default:
+                    Engine?.OnGameOver();
+                    break;
+            }
+        }
 
         /// <summary>
         /// SFEN文字列を盤面に変換する.

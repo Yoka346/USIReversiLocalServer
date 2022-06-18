@@ -3,8 +3,6 @@ using USIReversiLocalServer.Reversi;
 
 namespace USIReversiLocalServer
 {
-    // ToDo: クライアントにstopとgameoverの実装. 
-
     /// <summary>
     /// 対局を管理するクラス
     /// </summary>

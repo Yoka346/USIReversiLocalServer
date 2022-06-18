@@ -47,6 +47,10 @@ namespace USITestClient
 
         public override void StopThinking() { }
 
+        public override void OnGameOver() { }
+
+        public override void OnGameOver(GameResult result) { }
+
         void RandomEngine_OnSeedChanged(USIOption sender, dynamic oldValue, dynamic newValue)
             => this.rand = new Random(newValue);
     }
