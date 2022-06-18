@@ -41,6 +41,25 @@ namespace USIReversiLocalServer
 
         public bool IsGameStarted => State == USIEngineState.GameStart;
 
+        public bool QuitCommandWasSended { get; private set; }
+
+        /// <summary>
+        /// エンジンが正常終了したかどうか.
+        /// </summary>
+        public bool HasQuitSuccessfully { get; private set; }
+
+        /// <summary>
+        /// エンジンが予期せず終了したかどうか. 予期しない終了とは, QuitメソッドまたはKillメソッド以外での終了のこと.
+        /// </summary>
+        public bool HasQuitUnexpectedly { get; private set; }
+
+        /// <summary>
+        /// エンジンが強制終了されたかどうか.
+        /// </summary>
+        public bool WasKilled { get; private set; }
+
+        public event EventHandler Terminated;
+
         /// <summary>
         /// 秒読みオーバーの許容値.
         /// </summary>
@@ -69,8 +88,31 @@ namespace USIReversiLocalServer
             if (process is null)
                 return false;
             this.process = process;
+            this.process.Exited += Process_Exited;
             this.State = USIEngineState.StartUp;
             return true;
+        }
+
+        /// <summary>
+        /// 思考エンジンを終了させる.
+        /// </summary>
+        /// <param name="timeoutMs">タイムアウトのミリ秒</param>
+        /// <returns>quitコマンド送信後, 時間内に終了したか否か.</returns>
+        public bool Quit(int timeoutMs = 10000)
+        {
+            this.process.SendCommand("quit");
+            this.process.WaitForExit(timeoutMs);
+            return this.HasQuitSuccessfully = this.process.HasExited;
+        }
+
+        /// <summary>
+        /// 思考エンジンを強制終了させる.
+        /// </summary>
+        /// <returns></returns>
+        public void Kill()
+        {
+            this.WasKilled = true;
+            this.process.Kill();
         }
 
         /// <summary>
@@ -180,6 +222,13 @@ namespace USIReversiLocalServer
         {
             this.process.SendCommand("gameover");
             this.State = USIEngineState.StartUp;
+        }
+
+        void Process_Exited(object? sender, EventArgs e)
+        {
+            if(!this.WasKilled)
+                this.HasQuitUnexpectedly = !this.QuitCommandWasSended;
+            this.Terminated.Invoke(this, e);
         }
     }
 }

@@ -3,7 +3,7 @@ using USIReversiLocalServer.Reversi;
 
 namespace USIReversiLocalServer
 {
-    // ToDo: クライアントにstopとgameoverの実装. プロセスが予期せず終了したときの処理を記述. 全てのゲームが終了したときの終了処理を記述.
+    // ToDo: クライアントにstopとgameoverの実装. 
 
     /// <summary>
     /// 対局を管理するクラス
@@ -43,7 +43,7 @@ namespace USIReversiLocalServer
                 throw new NullReferenceException("All engines' config was not set.");
 
             this.engineConfigs = new EngineConfig[2] { this.Engine0, this.Engine1 };
-            this.engines = RunEngines(engineConfigs);
+            this.engines = RunEngines();
             if (this.engines is null)
                 return;
             this.players = (USIEngine[])this.engines.Clone();
@@ -72,6 +72,7 @@ namespace USIReversiLocalServer
                     if (!this.engines[i].TransitionToGameStartState(GAME_START_TIMEOUT_MS))
                     {
                         Console.WriteLine($"Error : Engine \"{Path.GetFileName(engineConfigs[i].Path)}\" did not transition to game start state.");
+                        QuitEngines();
                         return false;
                     }
 
@@ -88,6 +89,7 @@ namespace USIReversiLocalServer
                         if (!board.Update(move))
                         {
                             Console.WriteLine($"Error : Move {move} was illegal.");
+                            QuitEngines();
                             return false;
                         }
 
@@ -105,6 +107,7 @@ namespace USIReversiLocalServer
                     }
                 }
             }
+            QuitEngines();
             return true;
         }
 
@@ -155,7 +158,6 @@ namespace USIReversiLocalServer
             Console.WriteLine($"{this.engines[0].Name} winning rate : {(winCount0 + 0.5 * this.drawCount) / gameCount:.2f}%");
             Console.WriteLine($"{this.engines[1].Name} winning rate : {(winCount1 + 0.5 * this.drawCount) / gameCount:.2f}%\n");
 
-
             if (result == GameResult.Draw)
             {
                 foreach (var engine in this.engines)
@@ -180,19 +182,51 @@ namespace USIReversiLocalServer
             Swap(this.winCount);
         }
 
-        static USIEngine[]? RunEngines(EngineConfig[] engineConfigs)
+        USIEngine[]? RunEngines()
         {
-            var engines = (from config in engineConfigs select new USIEngine(config.Path)).ToArray();
-            for (var i = 0; i < engines.Length; i++)
+            var engines = (from config in this.engineConfigs select new USIEngine(config.Path)).ToArray();
+            var failFlag = false;
+            Parallel.For(0, engines.Length, i =>
             {
-                engines[i].InitialCommands.AddRange(engineConfigs[i].InitialCommands);
+                engines[i].InitialCommands.AddRange(this.engineConfigs[i].InitialCommands);
                 if (!engines[i].Run())
                 {
-                    Console.WriteLine($"Error : Engine did not start.\nEngine path is \"{engineConfigs[i].Path}\"");
-                    return null;
+                    Console.WriteLine($"Error : Engine did not start.\nEngine path is \"{this.engineConfigs[i].Path}\"");
+                    failFlag = true;
+                    return;
                 }
+                engines[i].Terminated += Engine_Terminated;
+            });
+            return failFlag ? null : engines;
+        }
+
+        void QuitEngines()
+        {
+            Parallel.ForEach(this.engines, engine =>
+            {
+                if (!engine.HasQuitSuccessfully)
+                    if (!engine.Quit())
+                    {
+                        Console.WriteLine($"Error : {engine.Name} did not quit after sending quit command.");
+                        engine.Kill();
+                        Console.WriteLine($"Error : {engine.Name} was forcefully terminated.");
+                    }
+                    else
+                        Console.WriteLine($"{engine.Name} was terminated.");
+            });
+        }
+
+        void Engine_Terminated(object? sender, EventArgs e)
+        {
+            if (sender is null)
+            {
+                Console.WriteLine("Error : Unknown engine was terminated.");
+                return;
             }
-            return engines;
+
+            var engine = (USIEngine)sender;
+            if(engine.HasQuitUnexpectedly)
+                Console.WriteLine($"Error : {engine.Name} was terminated unexpectedly.");
         }
 
         /// <summary>

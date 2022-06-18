@@ -10,6 +10,14 @@ namespace USIReversiLocalServer
         Process process;
         Queue<string?> recievedLines = new();
 
+        public bool HasExited => process.HasExited;
+
+        public event EventHandler Exited
+        {
+            add => this.process.Exited += value;
+            remove => this.process.Exited -= value;
+        }
+
         EngineProcess(Process process)
         {
             this.process = process;
@@ -41,6 +49,10 @@ namespace USIReversiLocalServer
         }
 
         public void SendCommand(string cmd) => this.process.StandardInput.WriteLine(cmd);
+
+        public void WaitForExit(int timeoutMs) => this.process.WaitForExit(timeoutMs);
+
+        public void Kill() => this.process.Kill();
 
         void Process_OutputDataReceived(object sender, DataReceivedEventArgs e) => this.recievedLines.Enqueue(e.Data);
     }
