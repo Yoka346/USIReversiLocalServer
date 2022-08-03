@@ -1,4 +1,6 @@
-﻿
+﻿using System;
+using System.Diagnostics;
+
 using USIReversiLocalServer.Reversi;
 
 namespace USIReversiLocalServer
@@ -14,7 +16,6 @@ namespace USIReversiLocalServer
         Random rand = new Random(Random.Shared.Next());
         USIEngine[] players;
         EngineConfig[] playerConfigs;
-        bool swapPlayer = false;
         int[] winCount;
         int drawCount;
 
@@ -25,14 +26,12 @@ namespace USIReversiLocalServer
 
         public Game(GameConfig gameConfig) => this.Config = gameConfig;
 
-        public void Start(int gameNum) => Start(gameNum, true);
-
         /// <summary>
         /// 対局を開始する.
         /// </summary>
         /// <param name="gameNum">対局回数.</param>
         /// <param name="swapPlayer">1手ごとに手番を入れ替えるか.</param>
-        public void Start(int gameNum, bool swapPlayer)
+        public void Start(int gameNum)
         {
             if (this.IsPlaying)
                 throw new InvalidOperationException("the game has already started.");
@@ -44,6 +43,7 @@ namespace USIReversiLocalServer
             this.engines = RunEngines();
             if (this.engines is null)
                 return;
+
             this.players = (USIEngine[])this.engines.Clone();
             this.playerConfigs = (EngineConfig[])this.engineConfigs.Clone();
 
@@ -60,7 +60,7 @@ namespace USIReversiLocalServer
 
         bool Mainloop(int gameNum)
         {
-            const int GAME_START_TIMEOUT_MS = 100000;
+            const int GAME_START_TIMEOUT_MS = 60000;
 
             this.winCount = new int[2];
             this.drawCount = 0;
@@ -69,27 +69,34 @@ namespace USIReversiLocalServer
                 for (var i = 0; i < this.engines.Length; i++)
                     if (!this.engines[i].TransitionToGameStartState(GAME_START_TIMEOUT_MS))
                     {
-                        Console.WriteLine($"Error : Engine \"{Path.GetFileName(engineConfigs[i].Path)}\" did not transition to game start state.");
+                        Console.Error.WriteLine($"Error : Engine \"{Path.GetFileName(engineConfigs[i].Path)}\" did not transition to game start state.");
                         QuitEngines();
                         return false;
                     }
 
                 var rootBoard = InitBoard();
                 var board = new Board(rootBoard);
+                var player = this.players[(int)board.SideToMove];
+                var opponet = this.players[(int)board.Opponent];
+                var playerMoveMs = this.playerConfigs[(int)board.SideToMove].MilliSecondsPerMove;
+                var opponentMoveMs = this.playerConfigs[(int)board.Opponent].MilliSecondsPerMove;
+                var lastMove = BoardCoordinate.Null;
+
+                Debug.WriteLine($"Root board: \n{rootBoard}");
+
                 while(true)
                 {
-                    var sideToMove = board.SideToMove;
-                    var engine = this.players[(int)sideToMove];
-                    var engineConfig = this.playerConfigs[(int)sideToMove];
-                    var move = engine.Think(rootBoard, board, engineConfig.MilliSecondsPerMove);
+                    var move = player.Think(rootBoard, board, lastMove, playerMoveMs);
                     if(move != BoardCoordinate.Resign)
                     {
                         if (!board.Update(move))
                         {
-                            Console.WriteLine($"Error : Move {move} was illegal.");
+                            Console.Error.WriteLine($"Error : Move {move} is illegal.");
                             QuitEngines();
                             return false;
                         }
+
+                        Debug.WriteLine($"\nCurrent board: \n{board}");
 
                         var result = board.GetGameResult(DiscColor.Black);
                         if (result != GameResult.NotOver)
@@ -103,6 +110,9 @@ namespace USIReversiLocalServer
                         OnGameOver(board.SideToMove, GameResult.Resigned);
                         break;
                     }
+
+                    (player, opponet) = (opponet, player);
+                    (playerMoveMs, opponentMoveMs) = (opponentMoveMs, playerMoveMs);
                 }
             }
             QuitEngines();
@@ -137,7 +147,7 @@ namespace USIReversiLocalServer
 
                 case GameResult.Loss:
                     var opponent = FastBoard.GetOpponentColor(player);
-                    Console.WriteLine($"Game over : {this.players[(int)opponent]}({opponent}) wins.");
+                    Console.WriteLine($"Game over : {this.players[(int)opponent].Name}({opponent}) wins.");
                     this.winCount[(int)opponent]++;
                     break;
 
@@ -153,8 +163,8 @@ namespace USIReversiLocalServer
             int winCount1 = this.winCount[(int)colorOfEngine1];
             var gameCount = winCount0 + winCount1 + this.drawCount;
             Console.WriteLine($"{this.engines[0].Name} v.s. {this.engines[1].Name} : {winCount0}-{this.drawCount}-{winCount1}");
-            Console.WriteLine($"{this.engines[0].Name} winning rate : {(winCount0 + 0.5 * this.drawCount) / gameCount:.2f}%");
-            Console.WriteLine($"{this.engines[1].Name} winning rate : {(winCount1 + 0.5 * this.drawCount) / gameCount:.2f}%\n");
+            Console.WriteLine($"{this.engines[0].Name} winning rate : {(winCount0 + 0.5f * this.drawCount) * 100.0f / gameCount:f2}%");
+            Console.WriteLine($"{this.engines[1].Name} winning rate : {(winCount1 + 0.5f * this.drawCount) * 100.0f / gameCount:f2}%\n");
 
             if (result == GameResult.Draw)
             {
@@ -169,7 +179,7 @@ namespace USIReversiLocalServer
                 this.players[(int)FastBoard.GetOpponentColor(winner)].GameOver(GameResult.Loss);
             }
 
-            if (this.swapPlayer)
+            if (this.Config.SwapPlayer)
                 SwapPlayer();
         }
 
@@ -182,16 +192,16 @@ namespace USIReversiLocalServer
 
         USIEngine[]? RunEngines()
         {
-            var engines = (from config in this.engineConfigs select new USIEngine(config.Path)).ToArray();
+            var engines = (from config in this.engineConfigs select new USIEngine(config.Path, config.Arguments, config.WorkDir)).ToArray();
             var failFlag = false;
             Parallel.For(0, engines.Length, i =>
             {
                 engines[i].InitialCommands.AddRange(this.engineConfigs[i].InitialCommands);
                 if (!engines[i].Run())
                 {
-                    Console.WriteLine($"Error : Engine did not start.\nEngine path is \"{this.engineConfigs[i].Path}\"");
+                    Console.Error.WriteLine($"Error : Engine did not start.\nEngine path is \"{this.engineConfigs[i].Path}\"");
                     failFlag = true;
-                    return;
+                    return;     
                 }
                 engines[i].Terminated += Engine_Terminated;
             });
@@ -205,9 +215,9 @@ namespace USIReversiLocalServer
                 if (!engine.HasQuitSuccessfully)
                     if (!engine.Quit())
                     {
-                        Console.WriteLine($"Error : {engine.Name} did not quit after sending quit command.");
+                        Console.Error.WriteLine($"Error : {engine.Name} did not quit after sending quit command.");
                         engine.Kill();
-                        Console.WriteLine($"Error : {engine.Name} was forcefully terminated.");
+                        Console.Error.WriteLine($"Error : {engine.Name} was forcefully terminated.");
                     }
                     else
                         Console.WriteLine($"{engine.Name} was terminated.");
@@ -218,13 +228,13 @@ namespace USIReversiLocalServer
         {
             if (sender is null)
             {
-                Console.WriteLine("Error : Unknown engine was terminated.");
+                Console.Error.WriteLine("Error : Unknown engine was terminated.");
                 return;
             }
 
             var engine = (USIEngine)sender;
             if(engine.HasQuitUnexpectedly)
-                Console.WriteLine($"Error : {engine.Name} was terminated unexpectedly.");
+                Console.Error.WriteLine($"Error : {engine.Name} was terminated unexpectedly.");
         }
 
         /// <summary>
@@ -234,12 +244,12 @@ namespace USIReversiLocalServer
         BookItem[]? LoadBook()
         {
             if (this.Config.OpeningSfenBookPath == string.Empty)    // Bookが指定されていないなら普通に初期盤面だけを返す.
-                return new BookItem[1] { BookItem.SfenToBookItem($"{USI.BoardToSfenString(Board.CreateCrossBoard())} moves ") };
+                return new BookItem[1] { BookItem.SfenToBookItem($"position sfen {USI.BoardToSfenString(Board.CreateCrossBoard())}") };
 
             if (!File.Exists(this.Config.OpeningSfenBookPath))
             {
-                Console.WriteLine($"Error : Book was not found.");
-                Console.WriteLine($"Book path was \"{this.Config.OpeningSfenBookPath}\".");
+                Console.Error.WriteLine($"Error : Book was not found.");
+                Console.Error.WriteLine($"Book path was \"{this.Config.OpeningSfenBookPath}\".");
                 return null;
             }
 
@@ -255,14 +265,16 @@ namespace USIReversiLocalServer
                     var item = BookItem.SfenToBookItem(line);
                     if(item is null)
                     {
-                        Console.WriteLine($"Error : Invalid game.\nSFEN = {line}\ncontinue loading.");
+                        Console.Error.WriteLine($"Error : Invalid game: {line}\ncontinue loading.");
                         failCount++;
                         continue;
                     }
                     book.Add(item);
                 }
             }
-            Console.WriteLine($"Done.\n{book.Count} games were loaded. Failed to load {failCount} games");
+            Console.WriteLine($"Done.\n{book.Count} games were loaded.");
+            if(failCount > 0)
+                Console.WriteLine($"Failed to load {failCount} games");
             return book.ToArray();
         }
 

@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "USIReversiLocalServer": {
+      "commandName": "Project",
+      "commandLineArgs": "--gamenum 10 --gameconfig config.json --engineconfig0 engine0.json --engineconfig1 engine1.json"
+    }
+  }
+}

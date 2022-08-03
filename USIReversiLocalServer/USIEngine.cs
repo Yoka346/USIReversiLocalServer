@@ -21,6 +21,8 @@ namespace USIReversiLocalServer
     internal class USIEngine
     {
         readonly string ENGINE_PATH;
+        readonly string ENGINE_ARGUMENTS;
+        readonly string ENGINE_WORKDIR;
         EngineProcess process;
         readonly ReadOnlyCollection<Action> ON_IDLE;    
 
@@ -40,6 +42,13 @@ namespace USIReversiLocalServer
         public USIEngineState State { get; private set; }
 
         public bool IsGameStarted => State == USIEngineState.GameStart;
+
+        /// <summary>
+        /// Ponder(相手の手番中に思考)が有効かどうか.
+        /// </summary>
+        public bool PonderIsEnabled => this.PonderMove != BoardCoordinate.Null;
+
+        public BoardCoordinate PonderMove { get; private set; } = BoardCoordinate.Null;
 
         public bool QuitCommandWasSended { get; private set; }
 
@@ -70,9 +79,11 @@ namespace USIReversiLocalServer
         /// </summary>
         public List<string> InitialCommands { get; private set; } = new();
 
-        public USIEngine(string path) 
+        public USIEngine(string path, string args, string workDir) 
         { 
             this.ENGINE_PATH = path;
+            this.ENGINE_ARGUMENTS = args;
+            this.ENGINE_WORKDIR = workDir;
             var onIdle = new Action[] { this.OnStartUp, this.OnWaitUSIOK, this.OnIsReady, 
                                         this.OnWaitReadyOK, () => { }, this.OnGameOver };
             this.ON_IDLE = new ReadOnlyCollection<Action>(onIdle);
@@ -84,11 +95,15 @@ namespace USIReversiLocalServer
         /// <returns>プロセスの生成に成功したか.</returns>
         public bool Run()
         {
-            var process = EngineProcess.Start(this.ENGINE_PATH);
+            var process = EngineProcess.Start(this.ENGINE_PATH, this.ENGINE_ARGUMENTS, this.ENGINE_WORKDIR);
             if (process is null)
                 return false;
+
             this.process = process;
             this.process.Exited += Process_Exited;
+            if (process.HasExited)
+                return false;
+
             this.State = USIEngineState.StartUp;
             return true;
         }
@@ -101,6 +116,7 @@ namespace USIReversiLocalServer
         public bool Quit(int timeoutMs = 10000)
         {
             this.process.SendCommand("quit");
+            this.QuitCommandWasSended = true;
             this.process.WaitForExit(timeoutMs);
             return this.HasQuitSuccessfully = this.process.HasExited;
         }
@@ -142,24 +158,33 @@ namespace USIReversiLocalServer
         /// <param name="board">現在の盤面.</param>
         /// <param name="timeLimitMilliSec">1手の時間制限</param>
         /// <returns></returns>
-        public BoardCoordinate Think(Board rootBoard, Board board, int timeLimitMilliSec)
+        public BoardCoordinate Think(Board rootBoard, Board board, BoardCoordinate lastMove, int timeLimitMilliSec)
         {
-            var sfen = $"position {USI.BoardToSfenString(rootBoard)} moves {USI.MovesToUSIMovesString(rootBoard.EnumerateMoveHistory())}";
-            this.process.SendCommand(sfen);
+            var ponderhit = false;
+            if (this.PonderIsEnabled)
+            {
+                if (ponderhit = this.PonderMove == lastMove)
+                    this.process.SendCommand($"ponderhit byoyomi {timeLimitMilliSec}");
+                else if (StopThinking() == BoardCoordinate.Null)
+                    return this.PonderMove = BoardCoordinate.Null;
+                this.PonderMove = BoardCoordinate.Null;
+            }
 
-            if(board.SideToMove == DiscColor.Black)
+            if (!ponderhit)
+            {
+                var cmd = $"position sfen {USI.BoardToSfenString(rootBoard)} moves {USI.MovesToUSIMovesString(board.EnumerateMoveHistory())}";
+                this.process.SendCommand(cmd);
                 this.process.SendCommand($"go byoyomi {timeLimitMilliSec}");
-            else
-                this.process.SendCommand($"go byoyomi {timeLimitMilliSec}");
+            }
 
             IgnoreSpaceStringReader bestMove;
             var startTime = Environment.TickCount;
             do
             {
-                if (Environment.TickCount - startTime > timeLimitMilliSec + this.ByoyomiToleranceMs)  
+                if (Environment.TickCount - startTime > timeLimitMilliSec + this.ByoyomiToleranceMs)
                 {
-                    this.process.SendCommand("stop");
                     Console.WriteLine($"Error : Timeout!! {this.Name} did not return the best move within {timeLimitMilliSec}[ms]");
+                    StopThinking();
                     return BoardCoordinate.Null;
                 }
                 bestMove = this.process.ReadOutput();
@@ -168,7 +193,60 @@ namespace USIReversiLocalServer
             var usiMove = bestMove.Read();
             var move = USI.ParseUSIMove(usiMove);
             if (move == BoardCoordinate.Null)
-                Console.WriteLine($"Error : Cannot parse \"{usiMove}\". \n");    
+            {
+                Console.WriteLine($"Error : Cannot parse \"{usiMove}\". \n");
+                return BoardCoordinate.Null;
+            }
+
+            if(bestMove.Read() == "ponder")
+            {
+                var usiPonderMove = bestMove.Read();
+                this.PonderMove = USI.ParseUSIMove(usiPonderMove);
+                if (this.PonderMove == BoardCoordinate.Null)
+                {
+                    Console.WriteLine($"Error : Cannnot parse \"{usiPonderMove}\".");
+                    return BoardCoordinate.Null;
+                }
+
+                if (board.Update(this.PonderMove))  // ponderで非合法手を受け取っても対局に影響を及ぼさないのでエラーにはしない.
+                {
+                    var cmd = $"position sfen {USI.BoardToSfenString(rootBoard)} moves {USI.MovesToUSIMovesString(board.EnumerateMoveHistory())}";
+                    this.process.SendCommand(cmd);
+                    this.process.SendCommand("go ponder");
+                    board.Undo();
+                }
+            }
+            return move;
+        }
+
+        /// <summary>
+        /// 思考エンジンの思考を停止させ, 暫定の最善手を得る.
+        /// </summary>
+        public BoardCoordinate StopThinking(int timeoutMs = 10000)
+        {
+            this.process.SendCommand("stop");
+
+            IgnoreSpaceStringReader output;
+            var start = Environment.TickCount;
+            var timeout = false;
+            do
+                output = this.process.ReadOutput();
+            while (output.Read() != "bestmove" && !(timeout = Environment.TickCount - start >= timeoutMs));
+
+            if (timeout)
+            {
+                Console.WriteLine($"Error : Timeout!! {this.Name} did not respond to \"stop\" command.");
+                return BoardCoordinate.Null;
+            }
+
+            var usiMove = output.Read(); 
+            var move = USI.ParseUSIMove(usiMove);
+            if (move == BoardCoordinate.Null)
+            {
+                Console.WriteLine($"Error : Cannot parse \"{usiMove}\". \n");
+                return BoardCoordinate.Null;
+            }
+
             return move;
         }
 

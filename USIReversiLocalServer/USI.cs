@@ -6,9 +6,9 @@ namespace USIReversiLocalServer
 {
     internal static class USI
     {
-        internal const int SFEN_LEN = 67;    // リバーシ用
+        internal const int MAX_SFEN_LEN = 67;    // リバーシ用
         static ReadOnlySpan<char> SFEN_DISC => new char[3] { 'X', 'O', '-' };
-        static ReadOnlySpan<char> SFEN_SIDE_TO_MOVE => new char[2] { 'b', 'w' };
+        static ReadOnlySpan<char> SFEN_SIDE_TO_MOVE => new char[2] { 'B', 'W' };
 
         /// <summary>
         /// 盤面をSFEN文字列で表現する.
@@ -17,21 +17,24 @@ namespace USIReversiLocalServer
         /// <returns></returns>
         public static string BoardToSfenString(Board board)
         {
-            Span<char> sfen = stackalloc char[SFEN_LEN];    // SFEN文字列の長さはSFEN_LENと最初から決まっているので,
-                                                            // StringBuilderを使うよりスタックに長さSFEN_LENのSpan<char>を確保した方が高速かも.
+            Span<char> sfen = stackalloc char[MAX_SFEN_LEN];    
             for (var coord = BoardCoordinate.A1; coord <= BoardCoordinate.H8; coord++)
                 sfen[(int)coord] = SFEN_DISC[(int)board.GetDiscColor(coord)];
             sfen[Board.SQUARE_NUM] = SFEN_SIDE_TO_MOVE[(int)board.SideToMove];
 
+            // 手数は60 - 空きマス数 + 1で計算する。それ故にパスは手数に含まれない。
             var moveNum = (Board.SQUARE_NUM - 4) - board.GetEmptyCount() + 1;
-            if(moveNum < 10)
+            if (moveNum < 10)
+            {
                 sfen[Board.SQUARE_NUM + 1] = (char)('0' + moveNum);
+                return sfen[..^1].ToString();
+            }
             else
             {
                 sfen[Board.SQUARE_NUM + 1] = (char)('0' + moveNum / 10);
-                sfen[Board.SQUARE_NUM + 2] = (char)('0' + moveNum % 10);
+                sfen[Board.SQUARE_NUM + 2] = (char)('0' + moveNum % 10); 
+                return sfen.ToString();
             }
-            return sfen.ToString();
         }
 
         /// <summary>
@@ -52,7 +55,7 @@ namespace USIReversiLocalServer
                 return null;
 
             var board = new Board();
-            for (var coord = 0; coord < sfen.Length - 1; coord++)
+            for (var coord = 0; coord < Board.SQUARE_NUM; coord++)
                 if (sfen[coord] == SFEN_DISC[(int)DiscColor.Black])
                     board.Put(DiscColor.Black, (BoardCoordinate)coord);
                 else if (sfen[coord] == SFEN_DISC[(int)DiscColor.White])
@@ -79,14 +82,7 @@ namespace USIReversiLocalServer
         /// </summary>
         /// <param name="move">USIプロトコルにおける着手.</param>
         /// <returns></returns>
-        public static BoardCoordinate ParseUSIMove(string move) => ParseUSIMove(move.AsSpan());
-
-        /// <summary>
-        /// USIプロトコルの着手文字列を盤面座標に変換する.
-        /// </summary>
-        /// <param name="move">USIプロトコルにおける着手.</param>
-        /// <returns></returns>
-        public static BoardCoordinate ParseUSIMove(ReadOnlySpan<char> move)
+        public static BoardCoordinate ParseUSIMove(string move)
         {
             if (move == "pass")
                 return BoardCoordinate.Pass;
@@ -129,7 +125,7 @@ namespace USIReversiLocalServer
             var sb = new StringBuilder();
             foreach (var move in moves)
                 if(move != BoardCoordinate.Null)   
-                    sb.Append(MoveToUSIMove(move));
+                    sb.Append(MoveToUSIMove(move)).Append(' ');
             return sb.ToString();
         }
 

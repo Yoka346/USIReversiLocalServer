@@ -15,29 +15,47 @@ namespace USIReversiLocalServer
 
         BookItem() { }
 
-        public static BookItem? SfenToBookItem(string sfen)     // 無効なフォーマットがあったらnullを返しているけど,
-                                                                // 本当は無効である理由とともに例外を投げたほうがいいかも.
+        public static BookItem? SfenToBookItem(string position)     
         {
-            if (sfen.Length < USI.SFEN_LEN)
+            if (position.Length < Board.SQUARE_NUM + 1)
                 return null;
 
-            var board = USI.SfenStringToBoard(sfen.AsSpan(0, USI.SFEN_LEN));
+            var posReader = new IgnoreSpaceStringReader(position);
+            if (posReader.Read() != "position")
+                return null;
+
+            Board? board = null;
+            var token = posReader.Read();
+            if (token == "sfen")
+                board = USI.SfenStringToBoard(posReader.ReadToEnd());
+            else if (token == "startpos")
+                board = Board.CreateCrossBoard();
             if (board is null)
                 return null;
 
-            var usiMoves = sfen.AsSpan(USI.SFEN_LEN);
-            if (usiMoves.Length < " moves ".Length || usiMoves[0..(" moves ".Length)] != " moves ")
+            BoardCoordinate[] moves;
+            token = posReader.Read();
+            if (token == "\0")
+                moves = new BoardCoordinate[0];
+            else if (token != "moves")
                 return null;
-            if (usiMoves.Length == " moves ".Length)
-                return new BookItem { initialBoard = board, moves = new BoardCoordinate[0] };
+            else
+            {
+                string usiMove;
+                Span<BoardCoordinate> moveList = stackalloc BoardCoordinate[Board.MAX_MOVE_NUM];
+                int moveCount = 0;
+                while ((usiMove = posReader.Read()) != "\0")
+                {
+                    var move = USI.ParseUSIMove(usiMove);
+                    if (move == BoardCoordinate.Null || !board.Update(move))    // 合法手チェック
+                        return null;
+                    moveList[moveCount++] = move;
+                }
 
-            usiMoves = usiMoves[" moves ".Length..];
-            var moves = USI.ParseUSIMoves(usiMoves).ToArray();
-            foreach (var move in moves) // 合法手かチェック.
-                if (move == BoardCoordinate.Null || !board.Update(move))
-                    return null;
+                while (board.Undo()) ;
 
-            while (board.Undo()) ;
+                moves = moveList[0..moveCount].ToArray();
+            }
 
             var item = new BookItem();
             item.initialBoard = board;

@@ -29,10 +29,13 @@ namespace USIReversiLocalServer
         /// 与えられたエンジンのパスからプロセスを生成
         /// </summary>
         /// <param name="path">エンジンのパス(Windowsならexeファイルなど)</param>
-        public static EngineProcess? Start(string path)
+        public static EngineProcess? Start(string path, string args = "", string workDir = "")
         {
-            ProcessStartInfo psi = new ProcessStartInfo();
+            var psi = new ProcessStartInfo();
             psi.FileName = path;
+            psi.Arguments = args;
+            if(workDir != string.Empty)
+                psi.WorkingDirectory = workDir;
             psi.CreateNoWindow = true;
             psi.UseShellExecute = false;
             psi.RedirectStandardInput = true;
@@ -48,12 +51,20 @@ namespace USIReversiLocalServer
             return new IgnoreSpaceStringReader(this.recievedLines.Dequeue() ?? string.Empty);
         }
 
-        public void SendCommand(string cmd) => this.process.StandardInput.WriteLine(cmd);
+        public void SendCommand(string cmd) 
+        {
+            Debug.WriteLine(cmd);
+            this.process.StandardInput.WriteLine(cmd); 
+        }
 
         public void WaitForExit(int timeoutMs) => this.process.WaitForExit(timeoutMs);
 
         public void Kill() => this.process.Kill();
 
-        void Process_OutputDataReceived(object sender, DataReceivedEventArgs e) => this.recievedLines.Enqueue(e.Data);
+        void Process_OutputDataReceived(object sender, DataReceivedEventArgs e)
+        {
+            Debug.WriteLine(e.Data);
+            this.recievedLines.Enqueue(e.Data);
+        }
     }
 }

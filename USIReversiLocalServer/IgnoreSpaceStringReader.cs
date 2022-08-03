@@ -26,7 +26,7 @@ namespace USIReversiLocalServer
         /// </summary>
         /// <param name="offset"></param>
         /// <returns></returns>
-        public ReadOnlySpan<char> Read(int offset = 0)
+        public string Read(int offset = 0)
         {
             var canRead = false;
             for(; this.position < this.STR.Length; this.position++)
@@ -37,29 +37,37 @@ namespace USIReversiLocalServer
                 }
 
             if (!canRead)
-                return "\0".AsSpan();
+                return "\0";
 
             int count;
-            for (count = 1; this.position + count < this.STR.Length && this.STR[count] != ' '; count++) ;
+            for (count = 1; this.position + count < this.STR.Length && this.STR[this.position + count] != ' '; count++) ;
 
             var start = this.position;
             this.position += count;
-            return this.STR.AsSpan(start, count);
+            return this.STR.AsSpan(start, count).ToString();
         }
 
         /// <summary>
-        /// 現在の位置 + offsetから最後まで文字列を読む. 空白も含む.
+        /// offsetから空白文字以外の文字が始まる位置を探し、そこから終端までの部分文字列を返す.
         /// </summary>
         /// <param name="offset"></param>
         /// <returns></returns>
-        public ReadOnlySpan<char> ReadToEnd(int offset = 0)
+        public string ReadToEnd(int offset = 0)
         {
-            if (this.position == this.STR.Length)
-                return string.Empty.AsSpan();
+            var canRead = false;
+            for (; this.position < this.STR.Length; this.position++)
+                if (this.STR[this.position] != ' ')
+                {
+                    canRead = true;
+                    break;
+                }
+
+            if (!canRead)
+                return "\0";
 
             var ret = this.STR.AsSpan(this.position, this.STR.Length - this.position);
             this.position = this.STR.Length;
-            return ret;
+            return ret.ToString();
         }
     }
 }

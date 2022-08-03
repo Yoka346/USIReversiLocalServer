@@ -1,18 +1,24 @@
-﻿using System.Collections.ObjectModel;
+﻿using System.Collections;
 using System.Text.Json;
 
 namespace USIReversiLocalServer
 {
     internal class EngineConfig
     {
-        public string Path { get; }
-        public ReadOnlyCollection<string> InitialCommands { get; }
-        public int MilliSecondsPerMove { get; }
+        public string Path { get; set; }
+        public string Arguments { get; set; }
+        public string WorkDir { get; set; }
+        public string[] InitialCommands { get; set; }
+        public int MilliSecondsPerMove { get; set; }
 
-        public EngineConfig(string path, IEnumerable<string> initialCmds, int milliSecPerMove)
+        public EngineConfig() { }
+
+        public EngineConfig(string path, string args, string workDir, IEnumerable<string> initialCmds, int milliSecPerMove)
         {
             this.Path = path;
-            this.InitialCommands = new ReadOnlyCollection<string>(initialCmds.ToArray());
+            this.Arguments = args;
+            this.WorkDir = workDir;
+            this.InitialCommands = initialCmds.ToArray();
             this.MilliSecondsPerMove = milliSecPerMove;
         }
 

@@ -36,10 +36,10 @@ namespace USIReversiLocalServer.Reversi
         public const int BOARD_SIZE = 8;
         public const int SQUARE_NUM = BOARD_SIZE * BOARD_SIZE;
         public const int MAX_MOVE_CANDIDATE_COUNT = 46;
-        const int MOVE_HISTORY_STACK_SIZE = 96;
+        public const int MAX_MOVE_NUM = 80;
 
         FastBoard fastBoard;
-        Stack<Move> moveHistory = new(MOVE_HISTORY_STACK_SIZE);
+        Stack<Move> moveHistory = new(MAX_MOVE_NUM);
 
         public DiscColor SideToMove { get { return fastBoard.SideToMove; } }
         public DiscColor Opponent { get { return fastBoard.Opponent; } }
@@ -179,7 +179,7 @@ namespace USIReversiLocalServer.Reversi
             var p = bitboard.CurrentPlayer;
             var o = bitboard.OpponentPlayer;
             var mask = 1UL << (SQUARE_NUM - 1);
-            for (var y = BOARD_SIZE - 1; y >= 0; y--)
+            for (var y = 0; y < BOARD_SIZE; y++)
             {
                 sb.Append($"\n{y + 1} ");
                 var line = new StringBuilder();
@@ -193,7 +193,7 @@ namespace USIReversiLocalServer.Reversi
                         line.Append(". ");
                     mask >>= 1;
                 }
-                sb.Append(line.ToString().Reverse().ToArray());
+                sb.Append(line.ToString());
             }
             return sb.ToString();
         }
